@@ -296,7 +296,10 @@ export function useIntentAwareAutoScroll(): {
       };
 
       const onWheel = (e: WheelEvent) => {
-        noteGesture();
+        // Only an upward wheel arms the gesture window. Wheel-down
+        // events must not whitelist a Shiki/Radix layout shrink that
+        // arrives in the next 250ms.
+        if (e.deltaY < 0) noteGesture();
         if (
           e.deltaY < 0 &&
           canScrollUp() &&
@@ -311,9 +314,10 @@ export function useIntentAwareAutoScroll(): {
       };
 
       const onTouchMove = (e: TouchEvent) => {
-        noteGesture();
         const y = e.touches[0]?.clientY ?? 0;
         // Finger moves DOWN on the screen = content scrolls UP.
+        // Only the upward-content direction arms the gesture window.
+        if (y - touchStartY > 0) noteGesture();
         if (
           y - touchStartY > TOUCH_MOVE_THRESHOLD_PX &&
           canScrollUp() &&
