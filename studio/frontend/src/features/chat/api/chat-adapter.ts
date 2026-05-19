@@ -319,7 +319,10 @@ function collectImageParts(
   return parts;
 }
 
-function toOpenAIMessage(message: RunMessage): {
+function toOpenAIMessage(
+  message: RunMessage,
+  injectReasoning: boolean = false,
+): {
   role: "system" | "user" | "assistant";
   content: OpenAIMessageContent;
 } | null {
@@ -332,10 +335,14 @@ function toOpenAIMessage(message: RunMessage): {
   }
 
   const textBody = collectTextParts(message).join("\n");
-  // Re-inject <think> on assistant history so the template sees a
-  // populated reasoning block.
+  // Re-inject <think> on assistant history only when the request goes
+  // to the local llama.cpp template path. External providers (Anthropic,
+  // OpenAI, Mistral, etc.) do not strip the tag, so injecting would
+  // leak literal "<think>..." into prompt history.
   const reasoning =
-    message.role === "assistant" ? collectReasoningTexts(message) : [];
+    injectReasoning && message.role === "assistant"
+      ? collectReasoningTexts(message)
+      : [];
   // Newline between <think>...</think> and body for prompt fidelity.
   let textContent = [...reasoning, textBody].filter(Boolean).join("\n");
   // Strip inline audio base64 from prior assistant messages to avoid
@@ -794,7 +801,7 @@ export function createOpenAIStreamAdapter(): ChatModelAdapter {
       }
 
       const outboundMessages = messages
-        .map(toOpenAIMessage)
+        .map((m) => toOpenAIMessage(m, !isExternalRequest))
         .filter((message): message is NonNullable<typeof message> =>
           Boolean(message),
         );
