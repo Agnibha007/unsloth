@@ -258,14 +258,11 @@ function collectTextParts(message: RunMessage): string[] {
   return textParts;
 }
 
-// Wrap prior assistant reasoning as <think>...</think> so the chat
-// template sees a populated reasoning block on replay. Without this,
-// the server template injects an empty <think></think> and some
-// models emit "I cannot complete this thought" boilerplate on the
-// next turn. Multiple reasoning parts are folded into a single
-// <think> block separated by newlines — chat templates expect one
-// unified reasoning block at the start of an assistant message, not
-// several sibling blocks.
+// Wrap prior assistant reasoning as <think>...</think> on replay.
+// An empty <think></think> from the server template triggers the
+// "I cannot complete this thought" boilerplate on some models.
+// Multiple reasoning parts fold into one block (templates expect a
+// single reasoning block, not siblings).
 function collectReasoningTexts(message: RunMessage): string[] {
   const texts: string[] = [];
   for (const part of message.content ?? []) {
@@ -335,13 +332,11 @@ function toOpenAIMessage(message: RunMessage): {
   }
 
   const textBody = collectTextParts(message).join("\n");
-  // Re-inject <think> blocks on assistant history so the next turn's
-  // chat template does not see an empty reasoning block.
+  // Re-inject <think> on assistant history so the template sees a
+  // populated reasoning block.
   const reasoning =
     message.role === "assistant" ? collectReasoningTexts(message) : [];
-  // Separate the reasoning block(s) from the body with a newline so the
-  // wire payload reads `<think>...\n</think>\nHello` rather than
-  // `</think>Hello`, which keeps prompt fidelity on the next turn.
+  // Newline between <think>...</think> and body for prompt fidelity.
   let textContent = [...reasoning, textBody].filter(Boolean).join("\n");
   // Strip inline audio base64 from prior assistant messages to avoid
   // inflating token counts (e.g. audio-player responses with embedded WAV).

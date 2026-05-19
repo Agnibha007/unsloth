@@ -317,12 +317,8 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
       return false;
     }
 
-    // Streaming if this group contains a reasoning part AND nothing
-    // after the group is plain text. Tool calls between reasoning and
-    // text are allowed (the panel needs to stay visible while the
-    // model interleaves reasoning with tool calls), but as soon as
-    // the model emits answer text the reasoning phase is over and the
-    // spinner / "Thinking" label should resolve to its duration.
+    // Streaming = group has reasoning AND no answer text after.
+    // Tool calls between reasoning and text keep the panel visible.
     let groupHasReasoning = false;
     for (let i = startIndex; i <= endIndex && i < len; i += 1) {
       if (parts[i]?.type === "reasoning") {

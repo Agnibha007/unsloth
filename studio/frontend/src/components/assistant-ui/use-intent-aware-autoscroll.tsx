@@ -286,10 +286,9 @@ export function useIntentAwareAutoScroll(): {
         requestTick();
       };
 
-      // Window during which an onScroll upward delta counts as user
-      // intent. Wheel/touch bumps it forward; layout-induced scroll
-      // events (shiki re-render, Radix animation) outside the window
-      // are treated as DOM growth and do not detach.
+      // Grace window where an upward scroll counts as user intent.
+      // Wheel/touch/keyboard bump it forward; layout-induced shrinks
+      // outside the window are treated as DOM growth, not intent.
       const USER_GESTURE_GRACE_MS = 250;
       let userGestureUntil = 0;
       const noteGesture = () => {
@@ -324,19 +323,10 @@ export function useIntentAwareAutoScroll(): {
         }
       };
 
-      // Keyboard navigation (PageUp / Home / arrow keys) and scrollbar
-      // drag (pointerdown landing inside the viewport but outside its
-      // content) reach onScroll with delta < 0 but no preceding wheel /
-      // touch event. Without bumping the gesture window for these,
-      // onScroll classifies the upward scroll as layout-induced and
-      // ignores it, leaving the follow loop pinning the user back to
-      // the bottom mid-stream.
-      //
-      // Scope both handlers so they only fire on real viewport-scroll
-      // intent — keys typed into a composer textarea and clicks on
-      // chat content (links / text selection) must NOT arm the
-      // gesture window, otherwise any layout-induced negative scroll
-      // delta in that 250ms window detaches follow mode incorrectly.
+      // Keyboard nav (PageUp/Home/arrows) and scrollbar drag reach
+      // onScroll with delta<0 but no wheel/touch. Bump the gesture
+      // window for them too. Scope: skip editable targets (composer
+      // caret movement) and content children (chat clicks).
       const isEditableTarget = (t: EventTarget | null): boolean => {
         if (!(t instanceof HTMLElement)) return false;
         const tag = t.tagName;
@@ -346,10 +336,8 @@ export function useIntentAwareAutoScroll(): {
       };
       const onKeyDownGesture = (e: KeyboardEvent) => {
         if (e.defaultPrevented) return;
-        // PageUp/Down inside a single-line textarea or in the composer
-        // moves the caret, not the page; only count keys whose default
-        // browser behaviour scrolls the viewport when focus is OUTSIDE
-        // an editable surface.
+        // Skip keys typed into a textarea -- they move the caret,
+        // not the viewport.
         if (isEditableTarget(e.target)) return;
         if (
           e.key === "PageUp" ||
@@ -365,11 +353,8 @@ export function useIntentAwareAutoScroll(): {
         }
       };
       const onPointerDownGesture = (e: PointerEvent) => {
-        // pointerdown whose target is the scrollable element itself
-        // is a scrollbar interaction — clicking the track / dragging
-        // the thumb. Pointerdowns on a child element are normal
-        // content clicks (links, buttons, text selection) and must
-        // not arm the gesture window.
+        // pointerdown on the scrollable element itself = scrollbar
+        // interaction. Children are content clicks, skip.
         if (e.target !== el) return;
         noteGesture();
       };
@@ -400,10 +385,8 @@ export function useIntentAwareAutoScroll(): {
             extendFollow();
           }
         } else if (delta < 0 && !userDetachedRef.current) {
-          // Upward: only count if a real user gesture happened
-          // recently. Scroll-anchoring from shiki re-render or
-          // Radix close-animations otherwise leaks negative deltas
-          // that look like upward intent and would detach.
+          // Upward: require a recent user gesture, otherwise this is
+          // layout shrink from shiki/Radix and must not detach.
           if (performance.now() > userGestureUntil) {
             lastScrollTop = scrollTop;
             lastClientWidth = clientWidth;
@@ -412,17 +395,9 @@ export function useIntentAwareAutoScroll(): {
             requestTick();
             return;
           }
-          // Sum across events. Middle-click autoscroll and some
-          // trackpads deliver 1px-per-event scrolls that each slip
-          // under a per-event threshold; summing catches them.
-          //
-          // Count distance-from-bottom growth, not raw scrollTop
-          // delta. When content above collapses (reasoning panels
-          // auto-closing after streaming, tool outputs auto-hiding),
-          // browsers scroll-anchor to keep visible content stable:
-          // scrollTop decreases but scrollHeight decreases by the
-          // same amount, so distance is unchanged. Those layout-
-          // induced deltas must not flip user intent.
+          // Sum across events to catch 1px-per-event trackpads. Use
+          // distance-from-bottom (not scrollTop) so scroll-anchoring
+          // from collapsing panels doesn't trip the accumulator.
           const distanceDelta = distanceNow - lastDistanceFromBottom;
           if (distanceDelta > 0) {
             upwardAccumulator += distanceDelta;
@@ -597,12 +572,9 @@ export function useIntentAwareAutoScroll(): {
       el.addEventListener("touchstart", onTouchStart, { passive: true });
       el.addEventListener("touchmove", onTouchMove, { passive: true });
       el.addEventListener("scroll", onScroll, { passive: true });
-      // Window-level: Page/Home/End/Arrow keys bubble up so we catch
-      // them even when focus is in the composer textarea.
+      // Window-level keydown so we catch keys with focus in composer.
       window.addEventListener("keydown", onKeyDownGesture);
-      // Element-level: pointerdown inside the scroll container most
-      // often lands on the scrollbar track (drag-to-scroll). Listening
-      // on the element keeps it scoped to this viewport.
+      // Element-level pointerdown = scrollbar drag scoped to this viewport.
       el.addEventListener("pointerdown", onPointerDownGesture, { passive: true });
       // ResizeObserver above covers browser-window resizes (they resize
       // the viewport element). visualViewport.resize is the only signal

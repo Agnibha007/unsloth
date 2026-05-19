@@ -212,8 +212,7 @@ const ToolGroupImpl: FC<
 > = ({ children, startIndex, endIndex }) => {
   const toolCount = endIndex - startIndex + 1;
 
-  // True while any tool in this group is currently running. Used to
-  // auto-open the accordion and animate the trigger.
+  // Any tool in this group running. Drives auto-open + trigger spin.
   const hasRunning = useAuiState(({ message }) => {
     const parts = message.parts;
     for (let i = startIndex; i <= endIndex && i < parts.length; i += 1) {
@@ -225,23 +224,20 @@ const ToolGroupImpl: FC<
     return false;
   });
 
-  // True while the owning assistant message is still streaming. Keeps
-  // the group "sticky open" across back-to-back tool bursts where
-  // hasRunning flickers between calls.
+  // Owning message still streaming. Keeps group sticky-open across
+  // back-to-back tool bursts where hasRunning flickers.
   const messageStreaming = useAuiState(
     ({ message }) => message.status?.type === "running",
   );
 
   const hasEverRunRef = useRef(false);
-  // Side effects belong in useEffect, not in render — under concurrent
-  // rendering / React StrictMode the render path can run twice and the
-  // ref would be set to inconsistent values vs. what the effect commits.
+  // Mutate ref in effect, not render, for StrictMode/concurrent safety.
   useEffect(() => {
     if (hasRunning) hasEverRunRef.current = true;
     if (!messageStreaming) hasEverRunRef.current = false;
   }, [hasRunning, messageStreaming]);
 
-  // Auto-follow our sticky predicate until the user clicks to override.
+  // Auto-follow sticky predicate until user clicks to override.
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const autoOpen = hasRunning || (messageStreaming && hasEverRunRef.current);
   const isOpen = userOpen ?? autoOpen;

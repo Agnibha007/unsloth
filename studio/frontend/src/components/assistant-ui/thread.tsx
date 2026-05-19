@@ -996,15 +996,13 @@ const GeneratingIndicator: FC = () => {
   return <span className="text-sm text-muted-foreground">Generating...</span>;
 };
 
-// Surfaces the currently-running tool at the bottom of the assistant
-// bubble. The tool group lives at the top of the message and can
-// scroll out of view during long tool waits (git clone, big web
-// fetches); this keeps activity visible in the viewport pin region.
+// Pins the running tool's name to the bottom of the assistant bubble
+// so activity stays visible after the tool group scrolls off-screen.
 const RunningToolIndicator: FC = () => {
   const running = useAuiState(({ message }) => {
     if (message.status?.type !== "running") return null;
     const parts = message.parts;
-    // Walk from the end so the most recent in-flight tool wins.
+    // Walk from end so most recent in-flight tool wins.
     for (let i = parts.length - 1; i >= 0; i -= 1) {
       const p = parts[i] as
         | { type?: string; toolName?: string; status?: { type?: string } }

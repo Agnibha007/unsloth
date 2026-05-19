@@ -314,8 +314,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   const isCancelled =
     status?.type === "incomplete" && status.reason === "cancelled";
 
-  // Open by default while the tool is running so its arguments and
-  // streaming result are visible without a manual click.
+  // Auto-open while running so args + streaming result are visible.
   const defaultOpen = status?.type === "running";
 
   return (
